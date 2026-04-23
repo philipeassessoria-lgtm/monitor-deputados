@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel Inspiracao - Deputados BR</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: #fafafa; color: #262626; line-height: 1.5; }
+header { background: linear-gradient(135deg,#833AB4,#FD1D1D,#FCB045);
+         color: white; padding: 28px 20px; text-align: center; }
+header h1 { font-size: 28px; margin-bottom: 8px; }
+header p { opacity: 0.92; font-size: 14px; }
+.stats { background:#262626; color:#fff; padding:12px; text-align:center; font-size:13px; }
+.stats strong { color:#FCB045; }
+.filtros { position: sticky; top:0; z-index:10; background:#fff;
+           padding:14px 20px; border-bottom:1px solid #e0e0e0;
+           display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.filtros input, .filtros select { padding:8px 12px; border:1px solid #dbdbdb;
+                                   border-radius:6px; font-size:14px; font-family:inherit; }
+.filtros input { flex:1; min-width:180px; }
+.container { max-width:1200px; margin:20px auto; padding:0 16px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+.card { background:white; border-radius:12px; padding:16px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.08); transition:all 0.2s; }
+.card:hover { transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,0.12); }
+.nome { font-weight:600; font-size:16px; margin-bottom:6px; color:#262626; }
+.tags { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.tag { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+.tag.uf { background:#e3f2fd; color:#1565c0; }
+.tag.partido { background:#f3e5f5; color:#6a1b9a; }
+.btns { display:flex; gap:6px; }
+.btn { flex:1; padding:8px 12px; border-radius:6px; text-decoration:none;
+       text-align:center; font-size:13px; font-weight:500; cursor:pointer;
+       border:none; font-family:inherit; }
+.btn-ig { background:linear-gradient(135deg,#833AB4,#FD1D1D); color:white; }
+.btn-ig:hover { opacity:0.9; }
+.btn-google { background:#f1f3f4; color:#3c4043; }
+.btn-google:hover { background:#e8eaed; }
+.add-area { background:white; padding:20px; border-radius:12px;
+            margin-top:24px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+.add-area h2 { font-size:18px; margin-bottom:8px; }
+.add-area p { font-size:13px; color:#555; margin-bottom:10px; }
+.add-area textarea { width:100%; min-height:100px; padding:10px; font-family:monospace;
+                     font-size:12px; border:1px solid #dbdbdb; border-radius:6px; }
+.add-area button { margin-top:10px; padding:10px 20px; background:#0095f6;
+                   color:white; border:none; border-radius:6px; cursor:pointer;
+                   font-size:14px; font-weight:600; }
+.add-area button:hover { background:#0081d6; }
+.vazio { text-align:center; padding:40px; color:#8e8e8e; }
+footer { text-align:center; padding:30px 20px; color:#8e8e8e; font-size:12px; }
+@media (max-width:600px) { .filtros { flex-direction:column; align-items:stretch; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Painel de Inspiracao</h1>
+  <p>Deputados federais + estaduais do Brasil, organizados para voce se inspirar</p>
+</header>
+
+<div class="stats">
+  Mostrando <strong id="contador">0</strong> de <strong id="total">0</strong> deputados
+  - <strong id="dataHoje"></strong>
+</div>
+
+<div class="filtros">
+  <input type="search" id="busca" placeholder="Buscar por nome...">
+  <select id="filtroUF">
+    <option value="">Todas UFs</option>
+  </select>
+  <select id="filtroPartido">
+    <option value="">Todos partidos</option>
+  </select>
+  <select id="filtroTipo">
+    <option value="">Federais + Estaduais</option>
+    <option value="federal">So Federais</option>
+    <option value="estadual">So Estaduais</option>
+  </select>
+</div>
+
+<div class="container">
+  <div class="grid" id="lista"></div>
+
+  <div class="add-area">
+    <h2>+ Adicionar deputados em massa</h2>
+    <p>Cole uma lista no formato: <code>Nome;UF;Partido;tipo</code> (1 por linha). Tipo = federal ou estadual. Depois clique em "Adicionar".</p>
+    <p>Exemplo: <code>Joao Silva;SP;PSDB;estadual</code></p>
+    <textarea id="addTexto" placeholder="Cole aqui..."></textarea>
+    <button onclick="adicionarMassa()">Adicionar</button>
+    <button onclick="exportar()" style="background:#5cb85c;margin-left:8px;">Exportar JSON</button>
+    <button onclick="limpar()" style="background:#d9534f;margin-left:8px;">Limpar tudo</button>
+  </div>
+</div>
+
+<footer>
+  Painel funciona 100% no seu navegador. Dados salvos localmente.<br>
+  Criado para Philipe - inspiracao de planejamento politico.
+</footer>
+
+<script>
+// ============ SEED: ~50 deputados federais mais conhecidos ============
+// Lista inicial (parcial). Use o script fetch_deputados_federais.py para completar 513.
+const SEED = [
+  {n:"Nikolas Ferreira",          uf:"MG", p:"PL",          t:"federal"},
+  {n:"Eduardo Bolsonaro",          uf:"SP", p:"PL",          t:"federal"},
+  {n:"Andre Janones",              uf:"MG", p:"Avante",      t:"federal"},
+  {n:"Guilherme Boulos",           uf:"SP", p:"PSOL",        t:"federal"},
+  {n:"Erika Hilton",               uf:"SP", p:"PSOL",        t:"federal"},
+  {n:"Tabata Amaral",              uf:"SP", p:"PSB",         t:"federal"},
+  {n:"Marcel van Hattem",          uf:"RS", p:"Novo",        t:"federal"},
+  {n:"Duda Salabert",              uf:"MG", p:"PDT",         t:"federal"},
+  {n:"Gustavo Gayer",              uf:"GO", p:"PL",          t:"federal"},
+  {n:"Bia Kicis",                  uf:"DF", p:"PL",          t:"federal"},
+  {n:"Kim Kataguiri",              uf:"SP", p:"Uniao",       t:"federal"},
+  {n:"Samia Bomfim",               uf:"SP", p:"PSOL",        t:"federal"},
+  {n:"Arthur Lira",                uf:"AL", p:"PP",          t:"federal"},
+  {n:"Carla Zambelli",             uf:"SP", p:"PL",          t:"federal"},
+  {n:"Baleia Rossi",               uf:"SP", p:"MDB",         t:"federal"},
+  {n:"Ze Trovao",                  uf:"SC", p:"PL",          t:"federal"},
+  {n:"Rosangela Moro",             uf:"SP", p:"Uniao",       t:"federal"},
+  {n:"Julia Zanatta",              uf:"SC", p:"PL",          t:"federal"},
+  {n:"Tiririca",                   uf:"SP", p:"Republicanos",t:"federal"},
+  {n:"Marcos Pollon",              uf:"MS", p:"PL",          t:"federal"},
+  {n:"Taliria Petrone",            uf:"RJ", p:"PSOL",        t:"federal"},
+  {n:"Fernanda Melchionna",        uf:"RS", p:"PSOL",        t:"federal"},
+  {n:"Henrique Vieira",            uf:"RJ", p:"PSOL",        t:"federal"},
+  {n:"Adriana Ventura",            uf:"SP", p:"Novo",        t:"federal"},
+  {n:"Chico Alencar",              uf:"RJ", p:"PSOL",        t:"federal"},
+  {n:"Alexandre Ramagem",          uf:"RJ", p:"PL",          t:"federal"},
+  {n:"Mario Frias",                uf:"SP", p:"PL",          t:"federal"},
+  {n:"Sanderson",                  uf:"RS", p:"PL",          t:"federal"},
+  {n:"Helio Lopes",                uf:"RJ", p:"PL",          t:"federal"},
+  {n:"General Girao",              uf:"RN", p:"PL",          t:"federal"},
+  {n:"Filipe Barros",              uf:"PR", p:"PL",          t:"federal"},
+  {n:"Sostenes Cavalcante",        uf:"RJ", p:"PL",          t:"federal"},
+  {n:"Benedita da Silva",          uf:"RJ", p:"PT",          t:"federal"},
+  {n:"Jandira Feghali",            uf:"RJ", p:"PCdoB",       t:"federal"},
+  {n:"Zeca Dirceu",                uf:"PR", p:"PT",          t:"federal"},
+  {n:"Pedro Lupion",               uf:"PR", p:"PP",          t:"federal"},
+  {n:"Ivan Valente",               uf:"SP", p:"PSOL",        t:"federal"},
+  {n:"Luciano Bivar",              uf:"PE", p:"Uniao",       t:"federal"},
+  {n:"Cabo Gilberto Silva",        uf:"PB", p:"PL",          t:"federal"},
+  {n:"Paulo Ganime",               uf:"RJ", p:"Novo",        t:"federal"},
+  {n:"Gilson Marques",             uf:"SC", p:"Novo",        t:"federal"},
+  {n:"Arnaldo Jardim",             uf:"SP", p:"Cidadania",   t:"federal"},
+  {n:"Carol Dartora",              uf:"PR", p:"PT",          t:"federal"},
+  {n:"Antonio Brito",              uf:"BA", p:"PSD",         t:"federal"},
+  {n:"Delegada Katarina",          uf:"SE", p:"PSD",         t:"federal"},
+  {n:"Lindbergh Farias",           uf:"RJ", p:"PT",          t:"federal"},
+  {n:"Capitao Alden",              uf:"BA", p:"PL",          t:"federal"},
+  {n:"Rodolfo Nogueira",           uf:"MS", p:"PL",          t:"federal"},
+  {n:"Jilmar Tatto",               uf:"SP", p:"PT",          t:"federal"},
+  {n:"Maria do Rosario",           uf:"RS", p:"PT",          t:"federal"}
+];
+
+// ============ Estado ============
+const STORAGE_KEY = "painel_deputados_v1";
+let deputados = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || [...SEED];
+
+// ============ Render ============
+function igSearchUrl(nome) {
+  return "https://www.instagram.com/explore/search/keyword/?q=" + encodeURIComponent(nome);
+}
+function googleUrl(nome, uf) {
+  return "https://www.google.com/search?q=" + encodeURIComponent('"'+nome+'" deputad '+uf+' instagram');
+}
+
+function render() {
+  const busca = document.getElementById("busca").value.toLowerCase().trim();
+  const uf = document.getElementById("filtroUF").value;
+  const part = document.getElementById("filtroPartido").value;
+  const tipo = document.getElementById("filtroTipo").value;
+
+  const filtrados = deputados.filter(d => {
+    if (busca && !d.n.toLowerCase().includes(busca)) return false;
+    if (uf && d.uf !== uf) return false;
+    if (part && d.p !== part) return false;
+    if (tipo && d.t !== tipo) return false;
+    return true;
+  });
+
+  const lista = document.getElementById("lista");
+  if (filtrados.length === 0) {
+    lista.innerHTML = '<div class="vazio">Nenhum deputado encontrado com esses filtros.</div>';
+  } else {
+    lista.innerHTML = filtrados.map(d => `
+      <div class="card">
+        <div class="nome">${d.n}</div>
+        <div class="tags">
+          <span class="tag uf">${d.uf}</span>
+          <span class="tag partido">${d.p}</span>
+          ${d.t==='estadual' ? '<span class="tag" style="background:#fff3e0;color:#e65100;">ESTADUAL</span>' : ''}
+        </div>
+        <div class="btns">
+          <a class="btn btn-ig" href="${igSearchUrl(d.n)}" target="_blank">Ver Instagram</a>
+          <a class="btn btn-google" href="${googleUrl(d.n, d.uf)}" target="_blank">Google</a>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("contador").textContent = filtrados.length;
+  document.getElementById("total").textContent = deputados.length;
+
+  // Popula dropdowns dinamicamente
+  const ufs = [...new Set(deputados.map(d => d.uf))].sort();
+  const partidos = [...new Set(deputados.map(d => d.p))].sort();
+  popularSelect("filtroUF", ufs);
+  popularSelect("filtroPartido", partidos);
+}
+
+function popularSelect(id, valores) {
+  const sel = document.getElementById(id);
+  const atual = sel.value;
+  const primeiro = sel.options[0].outerHTML;
+  sel.innerHTML = primeiro + valores.map(v => `<option value="${v}">${v}</option>`).join("");
+  sel.value = atual;
+}
+
+function adicionarMassa() {
+  const txt = document.getElementById("addTexto").value.trim();
+  if (!txt) return alert("Cole alguma coisa primeiro.");
+  const linhas = txt.split("\n");
+  let novos = 0;
+  linhas.forEach(l => {
+    const p = l.split(";").map(s => s.trim());
+    if (p.length >= 3 && p[0]) {
+      deputados.push({n: p[0], uf: p[1] || "??", p: p[2] || "?", t: (p[3] || "estadual").toLowerCase()});
+      novos++;
+    }
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(deputados));
+  document.getElementById("addTexto").value = "";
+  alert(`Adicionados: ${novos}. Total: ${deputados.length}.`);
+  render();
+}
+
+function exportar() {
+  const blob = new Blob([JSON.stringify(deputados, null, 2)], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "deputados_painel.json";
+  a.click();
+}
+
+function limpar() {
+  if (!confirm("Remover todos os deputados? Isso nao desfaz.")) return;
+  deputados = [];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(deputados));
+  render();
+}
+
+// Eventos
+["busca","filtroUF","filtroPartido","filtroTipo"].forEach(id => {
+  document.getElementById(id).addEventListener("input", render);
+});
+document.getElementById("dataHoje").textContent =
+  new Date().toLocaleDateString("pt-BR", {weekday:"long", day:"numeric", month:"long"});
+
+render();
+</script>
+</body>
+</html>
