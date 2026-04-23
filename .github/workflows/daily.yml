@@ -1,0 +1,55 @@
+name: Daily scrape & digest
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch: {}
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Fetch federais
+        run: python fetch_deputados_federais.py
+        continue-on-error: true
+      - name: Fetch estaduais
+        run: python scraper_estaduais.py
+        continue-on-error: true
+      - name: Coletar posts
+        env:
+          IG_USER: ${{ secrets.IG_USER }}
+          IG_PASS: ${{ secrets.IG_PASS }}
+        run: python coletar_posts.py
+        continue-on-error: true
+      - name: Ranquear
+        run: python ranquear_engajamento.py --top 30
+        continue-on-error: true
+      - name: Dashboard
+        run: python gerar_dashboard.py
+        continue-on-error: true
+      - name: WhatsApp
+        env:
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+        run: python whatsapp_callmebot.py --digest top_posts.json --limite 10
+        continue-on-error: true
+      - name: Commit
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add docs/ posts_24h.json top_posts.json deputados_*.json deputados_*.xlsx 2>/dev/null || true
+          git commit -m "chore: update" || echo "nothing"
+          git push || true
+      - name: Pages
+        if: hashFiles('docs/**') != ''
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
